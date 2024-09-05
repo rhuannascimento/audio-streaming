@@ -1,48 +1,52 @@
 import socket
-import threading
+import wave
+import time
+import json
 
-BUFFER_SIZE = 1024
+# Configurações do servidor
+IP_SERVIDOR = "0.0.0.0"
+PORTA_SERVIDOR = 12345
+TAMANHO_BUFFER = 1024  # Tamanho do bloco de dados enviado a cada pacote
 
-def broadcast_audio(file_path, server_ip, server_port):
+def servidor_udp(caminho_arquivo_wav):
+    with wave.open(caminho_arquivo_wav, 'rb') as wav_file:
+        servidor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        servidor_socket.bind((IP_SERVIDOR, PORTA_SERVIDOR))
+        
+        print(f"Servidor ouvindo em {IP_SERVIDOR}:{PORTA_SERVIDOR}")
 
-    
-    print(f"Servidor pronto para transmitir no endereço {server_ip}:{server_port}")
-    
-    # Ler arquivo de áudio
-    with open(file_path, 'rb') as audio_file:
+        # Metadados
+        metadados = {
+            'nchannels': wav_file.getnchannels(),
+            'sampwidth': wav_file.getsampwidth(),
+            'framerate': wav_file.getframerate(),
+            'nframes': wav_file.getnframes()
+        }
+        
+        # Compacta os metadados usando JSON e adiciona uma tag especial "META"
+        metadados_json = "META" + json.dumps(metadados)
+        
+        for cliente in lista_clientes:
+            servidor_socket.sendto(metadados_json.encode(), cliente)
+        
+        # Transmissão de áudio
         while True:
-            data = audio_file.read(BUFFER_SIZE)
-            if not data:
+            dados = wav_file.readframes(TAMANHO_BUFFER)
+            if not dados:
                 break
-            # Broadcast para os clientes conectados
-            for client in clients:
-                server_socket.sendto(data, client)
-    
-    print("Transmissão encerrada")
-    server_socket.close()
 
-# Lista de clientes conectados
-clients = []
+            for cliente in lista_clientes:
+                servidor_socket.sendto(dados, cliente)
 
-def handle_client(server_socket):
-    while True:
-        data, client_addr = server_socket.recvfrom(BUFFER_SIZE)
-        if client_addr not in clients:
-            clients.append(client_addr)
-            print(f"Cliente {client_addr} conectado.")
-        else:
-            print(f"Dados recebidos de {client_addr}")
+            time.sleep(0.01)
 
-if __name__ == "__main__":
-    SERVER_IP = "0.0.0.0"
-    SERVER_PORT = 8080
-    AUDIO_FILE = "vasco.wav"
-    
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server_socket.bind((SERVER_IP, SERVER_PORT))
-    
-    # Thread para aceitar clientes
-    threading.Thread(target=handle_client, args=(server_socket,), daemon=True).start()
+    servidor_socket.close()
+    print("Transmissão concluída.")
 
-    # Transmitir áudio
-    broadcast_audio(AUDIO_FILE, SERVER_IP, SERVER_PORT)
+# Lista de clientes
+lista_clientes = [("127.0.0.1", 54321)]
+
+# Caminho do arquivo .wav
+caminho_arquivo = "vasco.wav"
+
+servidor_udp(caminho_arquivo)

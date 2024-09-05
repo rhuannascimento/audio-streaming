@@ -1,26 +1,43 @@
 import socket
-import threading
+import wave
+import json
 
-BUFFER_SIZE = 1024
+# Configurações do cliente
+IP_SERVIDOR = "127.0.0.1"
+PORTA_SERVIDOR = 12345
+PORTA_CLIENTE = 54321
+TAMANHO_BUFFER = 4096  # Aumentado para 4096 bytes
 
-def receive_audio(client_id, server_ip, server_port, output_file):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    client_socket.sendto(b"Conectando", (server_ip, server_port))  # Envia uma mensagem inicial para se conectar
+def cliente_udp():
+    cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    cliente_socket.bind(("0.0.0.0", PORTA_CLIENTE))
+
+    print(f"Cliente ouvindo na porta {PORTA_CLIENTE}")
+
+    # Recebe a primeira mensagem que serão os metadados
+    metadados, _ = cliente_socket.recvfrom(TAMANHO_BUFFER)
     
-    with open(output_file, 'wb') as file:
+    # Verifica se a mensagem começa com a tag "META"
+    if metadados.decode().startswith("META"):
+        # Remove a tag "META" e converte para dicionário
+        metadados = json.loads(metadados.decode()[4:])
+    else:
+        print("Erro: não foram recebidos metadados válidos.")
+        return
+
+    # Cria arquivo de saída para salvar o áudio
+    with wave.open(f'output_cliente_{PORTA_CLIENTE}.wav', 'wb') as wav_file:
+        wav_file.setnchannels(metadados['nchannels'])
+        wav_file.setsampwidth(metadados['sampwidth'])
+        wav_file.setframerate(metadados['framerate'])
+
         while True:
-            data, _ = client_socket.recvfrom(BUFFER_SIZE)
-            if not data:
+            dados, _ = cliente_socket.recvfrom(TAMANHO_BUFFER)
+            if not dados:
                 break
-            file.write(data)
-    
-    print(f"Cliente {client_id} terminou de receber áudio.")
-    client_socket.close()
+            wav_file.writeframes(dados)
 
-if __name__ == "__main__":
-    SERVER_IP = "127.0.0.1"
-    SERVER_PORT = 12345
-    
-    # Criação de dois clientes
-    threading.Thread(target=receive_audio, args=(1, SERVER_IP, SERVER_PORT, "cliente1_audio.wav")).start()
-    threading.Thread(target=receive_audio, args=(2, SERVER_IP, SERVER_PORT, "cliente2_audio.wav")).start()
+    cliente_socket.close()
+    print(f"Áudio recebido e salvo como output_cliente_{PORTA_CLIENTE}.wav")
+
+cliente_udp()
