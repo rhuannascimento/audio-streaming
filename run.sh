@@ -1,4 +1,4 @@
 #!/bin/bash
 
-python server.py
-python client.py
+python ./src/server.py
+python ./src/client.py
