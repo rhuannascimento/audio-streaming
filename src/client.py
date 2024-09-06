@@ -1,25 +1,33 @@
 import socket
-import socket
+import pyaudio
 
-# Configurações do cliente
-IP_SERVIDOR = "127.0.0.1"
-PORTA_SERVIDOR = 12345
-PORTA_CLIENTE = 54321
-TAMANHO_BUFFER = 2048 * 2
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 1
+RATE = 44100
 
-def cliente_udp():
-    cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    cliente_socket.sendto(b"opa", (IP_SERVIDOR, PORTA_SERVIDOR))
-   
-    try:
-        while True:
-            audio_data, _ = cliente_socket.recvfrom(TAMANHO_BUFFER)
-            print(audio_data)
-    finally:
-        cliente_socket.close()
+audio = pyaudio.PyAudio()
+stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True, frames_per_buffer=CHUNK)
 
 
-cliente_udp()
+UDP_IP = "" 
+UDP_PORT = 5005
 
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind((UDP_IP, UDP_PORT))
 
+print("Aguardando transmissão de áudio...")
 
+try:
+    while True:
+        data, addr = sock.recvfrom(CHUNK * 2) 
+      
+        stream.write(data)
+except KeyboardInterrupt:
+    print("Recepção de áudio encerrada.")
+finally:
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+    sock.close()
