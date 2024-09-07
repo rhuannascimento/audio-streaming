@@ -25,6 +25,7 @@ class UDPServer:
         self.server_address = (host, port)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.rooms = {}  
+        self.client_rooms = {}
 
     def start(self):
         self.server_socket.bind(self.server_address)
@@ -48,14 +49,20 @@ class UDPServer:
 
                 if command == "JOIN":
                     room.add_client(address)
+                    self.client_rooms[address] = room_name
                     print(f"{address} entrou na sala {room_name}")
                 elif command == "LEAVE":
                     room.remove_client(address)
+                    if address in self.client_rooms:
+                        del self.client_rooms[address]
                     print(f"{address} saiu da sala {room_name}")
             else:
-                room_name = list(self.rooms.keys())[0]  
-                room = self.rooms[room_name]
-                room.broadcast(data, address, self.server_socket)
+                if address in self.client_rooms:  # Verifica se o cliente está associado a uma sala
+                    room_name = self.client_rooms[address]
+                    room = self.rooms[room_name]
+                    room.broadcast(data, address, self.server_socket)
+                else:
+                    print(f"Cliente {address} enviou dados, mas não está em nenhuma sala.")
         except Exception as e:
             print(f"Erro ao manipular pacote: {e}")
 
