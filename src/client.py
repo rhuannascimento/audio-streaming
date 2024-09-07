@@ -1,6 +1,7 @@
 import socket
 import threading
 import pyaudio
+import time
 
 CHUNK = 1024  
 FORMAT = pyaudio.paInt16  
@@ -17,6 +18,7 @@ class UDPClient:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.audio = pyaudio.PyAudio()
+        self.running = True
 
     def start(self):
         if self.mode == "transmit":
@@ -35,16 +37,13 @@ class UDPClient:
                                  frames_per_buffer=CHUNK)
 
         try:
-            while True:
+            while self.running:
                 audio_data = stream.read(CHUNK, exception_on_overflow=False)
                 self.client_socket.sendto(audio_data, self.server_address)
-        except KeyboardInterrupt:
-            pass
+        except Exception as e:
+            print(f"Erro na transmissão: {e}")
         finally:
-            self.client_socket.sendto(f"LEAVE:{self.room_name}".encode(), self.server_address)
-            print(f"Transmissor desconectado da sala {self.room_name}")
-            stream.stop_stream()
-            stream.close()
+            self.stop(stream)
 
     def listen_audio(self):
         self.client_socket.sendto(f"JOIN:{self.room_name}".encode(), self.server_address)
@@ -57,20 +56,22 @@ class UDPClient:
                                  frames_per_buffer=CHUNK)
 
         try:
-            while True:
+            while self.running:
                 data, _ = self.client_socket.recvfrom(BUFFER_SIZE)
                 stream.write(data)
-        except KeyboardInterrupt:
-            self.client_socket.sendto(f"LEAVE:{self.room_name}".encode(), self.server_address)
-            print(f"Ouvinte desconectado da sala {self.room_name}")
-            stream.stop_stream()
-            stream.close()
-            pass
+        except Exception as e:
+            print(f"Erro na recepção: {e}")
         finally:
-            self.client_socket.sendto(f"LEAVE:{self.room_name}".encode(), self.server_address)
-            print(f"Ouvinte desconectado da sala {self.room_name}")
-            stream.stop_stream()
-            stream.close()
+            self.stop(stream)
+
+    def stop(self, stream):
+        self.running = False
+        self.client_socket.sendto(f"LEAVE:{self.room_name}".encode(), self.server_address)
+        print(f"Desconectado da sala {self.room_name}")
+        stream.stop_stream()
+        stream.close()
+        self.client_socket.close()
+        self.audio.terminate()
 
 def menu():
     print("Escolha uma opção:")
@@ -91,8 +92,17 @@ if __name__ == "__main__":
     server_port = int(input("Digite a porta do servidor: "))
     room_name = input("Digite o nome da sala: ")
     
-    mode = menu()  
+    mode = menu()
 
     client = UDPClient(server_ip=server_ip, server_port=server_port, room_name=room_name, mode=mode)
+    
     client_thread = threading.Thread(target=client.start)
     client_thread.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nInterrompido! Finalizando o cliente...")
+        client.running = False
+        client_thread.join()
