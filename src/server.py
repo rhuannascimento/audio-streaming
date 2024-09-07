@@ -1,57 +1,65 @@
 import socket
 import threading
 
-CHUNK = 8192 * 2 
-MAX_UDP_PACKET_SIZE = 65507  
+BUFFER_SIZE = 65535
 
-class AudioServer:
-    def __init__(self, host='0.0.0.0', port=5005):
-        self.host = host
-        self.port = port
-        self.salas = {} 
+class Room:
+    def __init__(self):
+        self.clients = [] 
+
+    def add_client(self, address):
+        if address not in self.clients:
+            self.clients.append(address)
+
+    def remove_client(self, address):
+        if address in self.clients:
+            self.clients.remove(address)
+
+    def broadcast(self, data, sender_address, server_socket):
+        for client in self.clients:
+            if client != sender_address:
+                server_socket.sendto(data, client)
+
+class UDPServer:
+    def __init__(self, host="0.0.0.0", port=5000):
+        self.server_address = (host, port)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind((self.host, self.port))
+        self.rooms = {}  
 
-    def criar_sala(self, nome_sala, addr):
-        if nome_sala not in self.salas:
-            self.salas[nome_sala] = []
-            print(f"Sala '{nome_sala}' criada por {addr}")
-        else:
-            print(f"Sala '{nome_sala}' já existe.")
+    def start(self):
+        self.server_socket.bind(self.server_address)
+        print(f"Servidor UDP iniciado em {self.server_address}")
 
-    def adicionar_cliente(self, nome_sala, addr):
-        if nome_sala in self.salas:
-            self.salas[nome_sala].append(addr)
-            print(f"Cliente {addr} entrou na sala '{nome_sala}'")
-
-    def distribuir_audio(self, nome_sala, data, addr_origem):
-        if nome_sala in self.salas:
-            for addr in self.salas[nome_sala]:
-                if addr != addr_origem: 
-                    self.server_socket.sendto(data, addr)
-
-    def handle_client(self):
         while True:
-            data, addr = self.server_socket.recvfrom(MAX_UDP_PACKET_SIZE) 
+            try:
+                data, address = self.server_socket.recvfrom(BUFFER_SIZE)
+                self.handle_packet(data, address)
+            except Exception as e:
+                print(f"Erro: {e}")
 
-            if data.startswith(b"CRIAR"):
-                nome_sala = data[6:].decode()
-                self.criar_sala(nome_sala, addr)
-            
-            elif data.startswith(b"ENTRAR"):
-                nome_sala = data[7:].decode()
-                self.adicionar_cliente(nome_sala, addr)
-            
-            else:  
-                nome_sala_len = int(data[:4].decode())
-                nome_sala = data[4:4 + nome_sala_len].decode() 
-                audio_data = data[4 + nome_sala_len:] 
-                self.distribuir_audio(nome_sala, audio_data, addr)
-    
-    def iniciar(self):
-        print("Servidor central iniciado...")
-        threading.Thread(target=self.handle_client).start()
+    def handle_packet(self, data, address):
+        try:
+            if data.startswith(b"JOIN") or data.startswith(b"LEAVE"):
+                command, room_name = data.decode().split(":")
+                if room_name not in self.rooms:
+                    self.rooms[room_name] = Room()
 
-servidor = AudioServer()
-servidor.iniciar()
+                room = self.rooms[room_name]
+
+                if command == "JOIN":
+                    room.add_client(address)
+                    print(f"{address} entrou na sala {room_name}")
+                elif command == "LEAVE":
+                    room.remove_client(address)
+                    print(f"{address} saiu da sala {room_name}")
+            else:
+                room_name = list(self.rooms.keys())[0]  
+                room = self.rooms[room_name]
+                room.broadcast(data, address, self.server_socket)
+        except Exception as e:
+            print(f"Erro ao manipular pacote: {e}")
+
+if __name__ == "__main__":
+    server = UDPServer()
+    server_thread = threading.Thread(target=server.start)
+    server_thread.start()
