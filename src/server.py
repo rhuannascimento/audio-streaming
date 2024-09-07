@@ -1,13 +1,14 @@
 import socket
 import threading
 
-CHUNK = 8192 * 2
+CHUNK = 8192 * 2 
+MAX_UDP_PACKET_SIZE = 65507  
 
 class AudioServer:
     def __init__(self, host='0.0.0.0', port=5005):
         self.host = host
         self.port = port
-        self.salas = {}  # Dicionário para armazenar salas e seus clientes
+        self.salas = {} 
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
@@ -28,28 +29,25 @@ class AudioServer:
         if nome_sala in self.salas:
             for addr in self.salas[nome_sala]:
                 if addr != addr_origem: 
-                    print(addr)
-                    print(addr_origem)
                     self.server_socket.sendto(data, addr)
-
-
 
     def handle_client(self):
         while True:
-            data, addr = self.server_socket.recvfrom(CHUNK)
-            dataType, data = data.split()
-            dataType = dataType.decode()
+            data, addr = self.server_socket.recvfrom(MAX_UDP_PACKET_SIZE) 
 
-
-            if dataType.startswith("CRIAR"):
-                nome_sala = data.decode()
+            if data.startswith(b"CRIAR"):
+                nome_sala = data[6:].decode()
                 self.criar_sala(nome_sala, addr)
-            elif dataType.startswith("ENTRAR"):
-                nome_sala = data.decode()
+            
+            elif data.startswith(b"ENTRAR"):
+                nome_sala = data[7:].decode()
                 self.adicionar_cliente(nome_sala, addr)
-            else:
-                nome_sala = dataType.decode()
-                self.distribuir_audio(nome_sala.decode(), data, addr)
+            
+            else:  
+                nome_sala_len = int(data[:4].decode())
+                nome_sala = data[4:4 + nome_sala_len].decode() 
+                audio_data = data[4 + nome_sala_len:] 
+                self.distribuir_audio(nome_sala, audio_data, addr)
     
     def iniciar(self):
         print("Servidor central iniciado...")

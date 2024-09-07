@@ -1,7 +1,7 @@
 import socket
 import pyaudio
 
-CHUNK = 8192 * 2
+CHUNK = 4096  
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
@@ -13,10 +13,14 @@ def transmitir_audio(sala, server_ip, server_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     print(f"Transmitindo áudio para a sala '{sala}'...")
 
+    sala_encoded = sala.encode()
+    sala_len = len(sala_encoded)
+    header = f"{sala_len:04d}".encode() + sala_encoded  
+
     try:
         while True:
-            data = stream.read(1024)
-            sock.sendto(f"{sala} ".encode() + data, (server_ip, server_port))
+            data = stream.read(CHUNK)
+            sock.sendto(header + data, (server_ip, server_port)) 
     except KeyboardInterrupt:
         print("Transmissão encerrada.")
     finally:
@@ -30,13 +34,13 @@ def receber_audio(sala, server_ip, server_port):
     stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True, frames_per_buffer=CHUNK)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((server_ip, server_port))  # Bind em uma porta aleatória
+    sock.bind((server_ip, server_port)) 
 
     print(f"Conectado à sala '{sala}', aguardando transmissão...")
 
     try:
         while True:
-            data, addr = sock.recvfrom(CHUNK)
+            data, addr = sock.recvfrom(65535) 
             stream.write(data)
     except KeyboardInterrupt:
         print("Recepção encerrada.")

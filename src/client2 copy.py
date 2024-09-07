@@ -1,7 +1,7 @@
 import socket
 import pyaudio
 
-CHUNK = 4096  
+CHUNK = 4096  # Reduzindo o tamanho do CHUNK para garantir que os pacotes não sejam muito grandes
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
@@ -15,12 +15,12 @@ def transmitir_audio(sala, server_ip, server_port):
 
     sala_encoded = sala.encode()
     sala_len = len(sala_encoded)
-    header = f"{sala_len:04d}".encode() + sala_encoded  
+    header = f"{sala_len:04d}".encode() + sala_encoded  # 4 bytes para o tamanho do nome da sala
 
     try:
         while True:
             data = stream.read(CHUNK)
-            sock.sendto(header + data, (server_ip, server_port)) 
+            sock.sendto(header + data, (server_ip, server_port))  # Envia o header com o nome da sala e os dados de áudio
     except KeyboardInterrupt:
         print("Transmissão encerrada.")
     finally:
@@ -34,13 +34,14 @@ def receber_audio(sala, server_ip, server_port):
     stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True, frames_per_buffer=CHUNK)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((server_ip, server_port)) 
+    sock.bind((server_ip, server_port))  # Bind em uma porta aleatória
 
     print(f"Conectado à sala '{sala}', aguardando transmissão...")
 
     try:
         while True:
-            data, addr = sock.recvfrom(65535) 
+            # Aumentar o buffer de recepção para lidar com pacotes maiores
+            data, addr = sock.recvfrom(65535)  # Buffer no tamanho máximo possível para UDP
             stream.write(data)
     except KeyboardInterrupt:
         print("Recepção encerrada.")
