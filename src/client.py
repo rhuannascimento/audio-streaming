@@ -90,7 +90,7 @@ def menu():
 if __name__ == "__main__":
     # server_ip = input("Digite o IP do servidor: ")
     # server_port = int(input("Digite a porta do servidor: "))
-    server_ip = "127.0.0.1"
+    server_ip = "172.20.10.2"
     server_port = 5000
     room_name = input("Digite o nome da sala: ")
 

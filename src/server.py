@@ -57,7 +57,7 @@ class UDPServer:
                         del self.client_rooms[address]
                     print(f"{address} saiu da sala {room_name}")
             else:
-                if address in self.client_rooms:  # Verifica se o cliente está associado a uma sala
+                if address in self.client_rooms: 
                     room_name = self.client_rooms[address]
                     room = self.rooms[room_name]
                     room.broadcast(data, address, self.server_socket)
